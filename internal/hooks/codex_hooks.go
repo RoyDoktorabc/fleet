@@ -120,6 +120,8 @@ func EnsureCodexDirTrust(configDir, projectPath string) error {
 	if projectPath == "" {
 		return nil
 	}
+	trustMu.Lock()
+	defer trustMu.Unlock()
 	tomlPath := filepath.Join(configDir, "config.toml")
 	header := fmt.Sprintf(`[projects.%q]`, projectPath)
 
@@ -152,7 +154,18 @@ func EnsureCodexDirTrust(configDir, projectPath string) error {
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	if err := os.WriteFile(tomlPath, []byte(b.String()), 0644); err != nil {
+	// Write through a symlinked config.toml (dotfiles) rather than renaming
+	// a regular file over the link.
+	if real, err := filepath.EvalSymlinks(tomlPath); err == nil {
+		tomlPath = real
+	}
+	mode := os.FileMode(0o644)
+	if fi, err := os.Stat(tomlPath); err == nil {
+		mode = fi.Mode().Perm()
+	}
+	// Atomic: a plain WriteFile truncates first, and a reader or a second
+	// writer in that window sees (or keeps) an empty config.toml.
+	if err := writeFileAtomic(tomlPath, []byte(b.String()), mode); err != nil {
 		return fmt.Errorf("write config.toml: %w", err)
 	}
 	debuglog.Logger.Info("codex dir trust seeded", "path", projectPath)
