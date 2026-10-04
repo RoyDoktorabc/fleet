@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/brizzai/fleet/internal/config"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -431,5 +432,21 @@ func TestConversationActivePastHookIgnoresQueuedWork(t *testing.T) {
 				t.Errorf("conversationActivePastHook() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSkipPermissionsSettingReachesTheLaunchCommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s := &Session{ID: "abc-123", Agent: "claude"}
+	if strings.Contains(s.buildAgentCmd(), "skip-permissions") {
+		t.Fatal("off by default")
+	}
+	cfg := config.Load()
+	cfg.ClaudeSkipPermissions = true
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(s.buildAgentCmd(), "--dangerously-skip-permissions") {
+		t.Error("the setting should add --dangerously-skip-permissions on the next launch")
 	}
 }

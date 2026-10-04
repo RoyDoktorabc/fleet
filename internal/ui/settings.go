@@ -684,6 +684,9 @@ func buildSettingsCategories() []settingsCategory {
 			withLabel("Copy .claude", toggle(
 				(*config.Config).IsCopyClaudeSettingsEnabled,
 				func(c *config.Config, v bool) { c.CopyClaudeSettings = &v }, false)),
+			withLabel("Skip permissions", toggle(
+				(*config.Config).IsClaudeSkipPermissionsEnabled,
+				func(c *config.Config, v bool) { c.ClaudeSkipPermissions = v }, false)),
 			withLabel("Confirm before restart", toggle(
 				(*config.Config).IsConfirmBeforeRestartEnabled,
 				func(c *config.Config, v bool) { c.ConfirmBeforeRestart = &v }, false)),

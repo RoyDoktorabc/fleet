@@ -217,3 +217,13 @@ func TestOpenCodeNeverReceivesAnEffortFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestSkipPermissionsIsClaudeOnlyAndPrecedesThePrompt(t *testing.T) {
+	got := Claude.BuildLaunchCmd(LaunchOpts{ResumeID: "abc", SkipPermissions: true, Prompt: "go"})
+	if got != `claude --resume abc --dangerously-skip-permissions -- "$FLEET_INITIAL_PROMPT"` {
+		t.Errorf("claude = %q", got)
+	}
+	if got := Codex.BuildLaunchCmd(LaunchOpts{SkipPermissions: true}); got != "codex" {
+		t.Errorf("codex = %q, want the flag ignored", got)
+	}
+}

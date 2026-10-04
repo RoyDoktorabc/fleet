@@ -114,6 +114,9 @@ type LaunchOpts struct {
 	// Model names the model to launch on. Its text IS embedded in the command
 	// string, unlike Prompt — see ValidateLaunchValue for why that is safe.
 	Model string
+	// SkipPermissions starts Claude with --dangerously-skip-permissions.
+	// Ignored for other agents.
+	SkipPermissions bool
 	// Effort names the reasoning effort to launch at. Embedded like Model.
 	Effort string
 }
@@ -236,6 +239,9 @@ func (t Type) BuildLaunchCmd(o LaunchOpts) string {
 			cmd += fmt.Sprintf(" --resume %s --fork-session", o.ForkID)
 		} else if o.ResumeID != "" {
 			cmd += fmt.Sprintf(" --resume %s", o.ResumeID)
+		}
+		if o.SkipPermissions {
+			cmd += " --dangerously-skip-permissions"
 		}
 	}
 

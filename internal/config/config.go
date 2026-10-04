@@ -63,6 +63,9 @@ type Config struct {
 	AutoUpdate           *bool  `json:"auto_update,omitempty"`
 	CopyClaudeSettings   *bool  `json:"copy_claude_settings,omitempty"`
 	ConfirmBeforeRestart *bool  `json:"confirm_before_restart,omitempty"`
+	// ClaudeSkipPermissions launches Claude sessions with
+	// --dangerously-skip-permissions (default off).
+	ClaudeSkipPermissions bool `json:"claude_skip_permissions,omitempty"`
 	// OriginDeleteRemovesWorktrees controls what forgetting a whole origin row
 	// does to worktree directories on disk. Default true: each checkout follows
 	// its own rule (worktrees get `git worktree remove`, the main repo's folder
@@ -534,6 +537,10 @@ func (c *Config) IsCopyClaudeSettingsEnabled() bool {
 	}
 	return *c.CopyClaudeSettings
 }
+
+// IsClaudeSkipPermissionsEnabled reports whether Claude sessions start with
+// permissions bypassed.
+func (c *Config) IsClaudeSkipPermissionsEnabled() bool { return c.ClaudeSkipPermissions }
 
 // IsConfirmBeforeRestartEnabled returns whether to confirm before restarting a session (default: true).
 func (c *Config) IsConfirmBeforeRestartEnabled() bool {

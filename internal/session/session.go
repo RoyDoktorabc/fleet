@@ -19,6 +19,7 @@ import (
 	"github.com/brizzai/fleet/internal/agent"
 	"github.com/brizzai/fleet/internal/analytics"
 	"github.com/brizzai/fleet/internal/claudeaccount"
+	"github.com/brizzai/fleet/internal/config"
 	"github.com/brizzai/fleet/internal/debuglog"
 	"github.com/brizzai/fleet/internal/hooks"
 	"github.com/brizzai/fleet/internal/tmux"
@@ -221,6 +222,9 @@ func (s *Session) buildAgentCmd() string {
 		Prompt:   s.InitialPrompt,
 		Model:    s.Model,
 		Effort:   s.Effort,
+		// Read at launch so a Settings change applies to the next start,
+		// from the TUI and the CLI alike.
+		SkipPermissions: config.Load().IsClaudeSkipPermissionsEnabled(),
 	})
 }
 
