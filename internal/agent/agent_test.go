@@ -27,10 +27,10 @@ func TestBuildLaunchCmd(t *testing.T) {
 		opts LaunchOpts
 		want string
 	}{
-		{"claude new", Claude, LaunchOpts{}, "claude"},
-		{"claude resume", Claude, LaunchOpts{ResumeID: "abc"}, "claude --resume abc"},
-		{"claude fork", Claude, LaunchOpts{ForkID: "abc"}, "claude --resume abc --fork-session"},
-		{"claude fork wins over resume", Claude, LaunchOpts{ResumeID: "r", ForkID: "f"}, "claude --resume f --fork-session"},
+		{"claude new", Claude, LaunchOpts{}, "claude --teammate-mode in-process"},
+		{"claude resume", Claude, LaunchOpts{ResumeID: "abc"}, "claude --teammate-mode in-process --resume abc"},
+		{"claude fork", Claude, LaunchOpts{ForkID: "abc"}, "claude --teammate-mode in-process --resume abc --fork-session"},
+		{"claude fork wins over resume", Claude, LaunchOpts{ResumeID: "r", ForkID: "f"}, "claude --teammate-mode in-process --resume f --fork-session"},
 		{"codex new", Codex, LaunchOpts{}, "codex"},
 		{"codex resume", Codex, LaunchOpts{ResumeID: "abc"}, "codex resume abc"},
 		{"codex fork", Codex, LaunchOpts{ForkID: "abc"}, "codex fork abc"},
@@ -42,13 +42,13 @@ func TestBuildLaunchCmd(t *testing.T) {
 		// A prompt is the agent's own argument, behind a separator that ends
 		// option parsing — `--` for Claude/Codex, `--prompt=` for OpenCode,
 		// whose positional is a project path instead.
-		{"claude prompt", Claude, LaunchOpts{Prompt: "fix it"}, `claude -- "$FLEET_INITIAL_PROMPT"`},
+		{"claude prompt", Claude, LaunchOpts{Prompt: "fix it"}, `claude --teammate-mode in-process -- "$FLEET_INITIAL_PROMPT"`},
 		{"codex prompt", Codex, LaunchOpts{Prompt: "fix it"}, `codex -- "$FLEET_INITIAL_PROMPT"`},
 		{"opencode prompt", OpenCode, LaunchOpts{Prompt: "fix it"}, `opencode --prompt="$FLEET_INITIAL_PROMPT"`},
-		{"claude resume with prompt", Claude, LaunchOpts{ResumeID: "abc", Prompt: "go on"}, `claude --resume abc -- "$FLEET_INITIAL_PROMPT"`},
+		{"claude resume with prompt", Claude, LaunchOpts{ResumeID: "abc", Prompt: "go on"}, `claude --teammate-mode in-process --resume abc -- "$FLEET_INITIAL_PROMPT"`},
 		{"codex resume with prompt", Codex, LaunchOpts{ResumeID: "abc", Prompt: "go on"}, `codex resume abc -- "$FLEET_INITIAL_PROMPT"`},
 		{"opencode resume with prompt", OpenCode, LaunchOpts{ResumeID: "abc", Prompt: "go on"}, `opencode --session abc --prompt="$FLEET_INITIAL_PROMPT"`},
-		{"claude fork with prompt", Claude, LaunchOpts{ForkID: "abc", Prompt: "go on"}, `claude --resume abc --fork-session -- "$FLEET_INITIAL_PROMPT"`},
+		{"claude fork with prompt", Claude, LaunchOpts{ForkID: "abc", Prompt: "go on"}, `claude --teammate-mode in-process --resume abc --fork-session -- "$FLEET_INITIAL_PROMPT"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -117,12 +117,12 @@ func TestBuildLaunchCmdModelAndEffortPerAgent(t *testing.T) {
 		o    LaunchOpts
 		want string
 	}{
-		{"claude model", Claude, LaunchOpts{Model: "opus"}, "claude --model opus"},
-		{"claude effort", Claude, LaunchOpts{Effort: "xhigh"}, "claude --effort xhigh"},
-		{"claude both", Claude, LaunchOpts{Model: "claude-opus-5", Effort: "high"}, "claude --model claude-opus-5 --effort high"},
+		{"claude model", Claude, LaunchOpts{Model: "opus"}, "claude --teammate-mode in-process --model opus"},
+		{"claude effort", Claude, LaunchOpts{Effort: "xhigh"}, "claude --teammate-mode in-process --effort xhigh"},
+		{"claude both", Claude, LaunchOpts{Model: "claude-opus-5", Effort: "high"}, "claude --teammate-mode in-process --model claude-opus-5 --effort high"},
 		{"codex effort is a config override", Codex, LaunchOpts{Model: "gpt-5.1-codex-max", Effort: "high"}, "codex --model gpt-5.1-codex-max -c model_reasoning_effort=high"},
 		{"opencode takes a model but never an effort", OpenCode, LaunchOpts{Model: "anthropic/claude-sonnet-5", Effort: "max"}, "opencode --model anthropic/claude-sonnet-5"},
-		{"neither set changes nothing", Claude, LaunchOpts{}, "claude"},
+		{"neither set changes nothing", Claude, LaunchOpts{}, "claude --teammate-mode in-process"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestOpenCodeNeverReceivesAnEffortFlag(t *testing.T) {
 
 func TestSkipPermissionsIsClaudeOnlyAndPrecedesThePrompt(t *testing.T) {
 	got := Claude.BuildLaunchCmd(LaunchOpts{ResumeID: "abc", SkipPermissions: true, Prompt: "go"})
-	if got != `claude --resume abc --dangerously-skip-permissions -- "$FLEET_INITIAL_PROMPT"` {
+	if got != `claude --teammate-mode in-process --resume abc --dangerously-skip-permissions -- "$FLEET_INITIAL_PROMPT"` {
 		t.Errorf("claude = %q", got)
 	}
 	if got := Codex.BuildLaunchCmd(LaunchOpts{SkipPermissions: true}); got != "codex" {

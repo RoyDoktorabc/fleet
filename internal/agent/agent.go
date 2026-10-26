@@ -234,7 +234,9 @@ func (t Type) BuildLaunchCmd(o LaunchOpts) string {
 		}
 
 	default: // Claude
-		cmd = "claude"
+		// Inside tmux, "auto" splits each agent-team teammate into its own pane,
+		// shrinking the lead pane the preview captures.
+		cmd = "claude --teammate-mode in-process"
 		if o.ForkID != "" {
 			cmd += fmt.Sprintf(" --resume %s --fork-session", o.ForkID)
 		} else if o.ResumeID != "" {
