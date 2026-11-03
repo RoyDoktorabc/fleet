@@ -3178,11 +3178,17 @@ func (h *Home) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// sees this Ctrl+C. Ctrl+Shift+C reaches us as plain Ctrl+C on terminals
 	// without extended keys (VTE, Terminal.app) — when the terminal lets it
 	// through at all — so both mean copy, as in herdr.
+	// Cmd+C reaches us as super+c only when the terminal passes it through
+	// (Ghostty: keybind = performable:super+c=copy_to_clipboard).
 	if h.previewSel.shown {
 		switch msg.String() {
-		case "ctrl+c", "ctrl+shift+c":
+		case "ctrl+c", "ctrl+shift+c", "super+c":
 			return h, h.copyPreviewSelection()
 		}
+	}
+	// Cmd+C with nothing selected is swallowed so the agent never gets a stray "c".
+	if msg.String() == "super+c" {
+		return h, nil
 	}
 	h.clearPreviewSelection()
 	h.resetPreviewScroll()

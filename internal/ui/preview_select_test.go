@@ -106,6 +106,18 @@ func TestPreviewSelectionLifecycle(t *testing.T) {
 	}
 }
 
+func TestCmdCCopiesTheSelection(t *testing.T) {
+	h := selectTestHome(t)
+	drag(h, 12, 2, 16, 2)
+	_, cmd := h.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModSuper})
+	if cmd == nil || h.previewSel.active() {
+		t.Fatal("Cmd+C with a selection should copy and clear it")
+	}
+	if _, cmd = h.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModSuper}); cmd != nil || h.quitting {
+		t.Error("Cmd+C with nothing selected should do nothing")
+	}
+}
+
 func TestCtrlCQuitsOnTheSecondPress(t *testing.T) {
 	h := selectTestHome(t)
 	h.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
