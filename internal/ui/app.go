@@ -3140,19 +3140,17 @@ func (h *Home) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	if cmd, handled := h.routeToModal(msg); handled {
 		return h, cmd
 	}
+	// Not the control client: it takes one command per line, so a newline in
+	// the paste ended send-keys and everything after line 1 was lost.
 	if h.focusMode {
 		if s := h.selectedSession(); s != nil && s.IsAlive() {
-			if cc := h.getControlClient(); cc != nil {
-				_ = cc.SendLiteralKeys(s.GetTmuxSession().Name, msg.Content)
-			}
+			_ = s.GetTmuxSession().Paste(msg.Content)
 		}
 		return h, nil
 	}
 	if h.drawerHasFocus() {
 		if sh := h.activeShell(); sh != nil {
-			if cc := h.getControlClient(); cc != nil {
-				_ = cc.SendLiteralKeys(sh.TmuxName(), msg.Content)
-			}
+			_ = sh.Tmux().Paste(msg.Content)
 		}
 		return h, nil
 	}

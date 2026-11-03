@@ -880,6 +880,15 @@ var sendBufferSeq atomic.Uint64
 // Enter is a separate call on purpose — it must land after the paste's closing
 // marker for the agent to read it as "submit" rather than as pasted content.
 func (s *Session) PasteAndSubmit(text string) error {
+	if err := s.Paste(text); err != nil {
+		return err
+	}
+	return s.SendKeys("Enter")
+}
+
+// Paste hands text to the pane as one bracketed paste, newlines included (see
+// PasteAndSubmit for why not SendLiteralKeys).
+func (s *Session) Paste(text string) error {
 	// The buffer name must be unique per *call*, not per target session: two
 	// concurrent sends to one session are exactly the case that shares a name,
 	// and they interleave as load(A) → load(B) → paste -d(A pastes B's text and
@@ -904,8 +913,7 @@ func (s *Session) PasteAndSubmit(text string) error {
 		debuglog.Logger.Error("tmux paste-buffer failed", "session", s.Name, "err", err)
 		return fmt.Errorf("tmux paste-buffer failed: %s: %w", strings.TrimSpace(string(out)), err)
 	}
-
-	return s.SendKeys("Enter")
+	return nil
 }
 
 // CapturePaneFresh invalidates the cache before capturing, ensuring fresh output.
