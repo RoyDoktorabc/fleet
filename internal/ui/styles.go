@@ -569,9 +569,9 @@ func TitleStyleForStatus(status session.Status) lipgloss.Style {
 	switch status {
 	case session.StatusRunning, session.StatusWaiting:
 		return lipgloss.NewStyle().Foreground(ColorText).Bold(true)
-	case session.StatusError:
-		return lipgloss.NewStyle().Foreground(ColorText).Underline(true)
-	case session.StatusSuspended:
+	case session.StatusError, session.StatusSuspended:
+		// Nothing is running behind either row, so the whole line reads inactive;
+		// an error row keeps only its red ✕.
 		return lipgloss.NewStyle().Foreground(ColorTextDim)
 	default:
 		return lipgloss.NewStyle().Foreground(ColorText)
