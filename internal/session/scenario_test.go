@@ -28,12 +28,14 @@ type mockPane struct {
 	deadInfoCalls int    // PaneDeadInfo shell-outs made; counted, since not asking is the point
 	activityUnix  int64  // simulated tmux window_activity timestamp
 	hasActivity   bool   // false → GetActivity reports unknown
+	shellFg       bool   // agent exited, pane back at its shell
 }
 
 func (m *mockPane) CapturePane() (string, error) { return m.content, nil }
 func (m *mockPane) Exists() bool                 { return !m.tmuxGone }
 func (m *mockPane) IsPaneDead() bool             { return m.dead }
 func (m *mockPane) GetActivity() (int64, bool)   { return m.activityUnix, m.hasActivity }
+func (m *mockPane) ShellInForeground() bool      { return m.shellFg }
 
 // PaneDeadInfo answers whenever tmux is reachable and willing. A gone session has
 // no pane to report on, and a live one can still fail to answer — the callers

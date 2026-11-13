@@ -1209,6 +1209,19 @@ func PaneCurrentCommand(name string) string {
 	return sessionCmdData[name]
 }
 
+// loginShells are the pane foreground commands that mean "back at the prompt".
+// Login shells report a dash-prefixed name.
+var loginShells = map[string]bool{
+	"zsh": true, "bash": true, "sh": true, "fish": true, "tcsh": true,
+	"-zsh": true, "-bash": true, "-sh": true, "-fish": true, "-tcsh": true,
+}
+
+// ShellInForeground reports whether this session's pane is back at its shell
+// (the agent exited). Cache-only; false when the pane is not in the last refresh.
+func (s *Session) ShellInForeground() bool {
+	return loginShells[PaneCurrentCommand(s.Name)]
+}
+
 // PanePID returns the cached pane process id (the pane's shell) for a session,
 // or 0 when unknown. Cache-only; RefreshSessionCache populates it once per tick.
 // Used by the shells feature to find each shell's foreground child process (the

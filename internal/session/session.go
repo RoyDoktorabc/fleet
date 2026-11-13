@@ -39,6 +39,9 @@ type PaneCapturer interface {
 	// PaneDeadInfo is how the pane died: tmux's exit status and signal, with
 	// ok=false when the tmux session is gone and there is nothing to ask.
 	PaneDeadInfo() (dead bool, exitStatus, exitSignal string, ok bool)
+	// ShellInForeground is whether the pane is back at its login shell, i.e. the
+	// agent exited but the pane (and tmux session) stayed up. false when unknown.
+	ShellInForeground() bool
 }
 
 // Status represents the current state of a session.
@@ -1265,6 +1268,18 @@ func (s *Session) UpdateStatus() {
 		s.triggerCrashDump("pane_dead")
 		if newFailure(oldStatus) {
 			s.reportErrored("pane_dead", s.exitProps())
+		}
+		return
+	}
+
+	// Agent exited to its shell: pane alive, nothing left to change state. Without
+	// this the pane scraper reads the agent's last frame, still on screen above the
+	// prompt, as an idle ❯ and keeps the row "finished" forever. Starting is
+	// exempt: the shell is in front for a moment before the agent launches.
+	if oldStatus != StatusStarting && s.getCapturer().ShellInForeground() {
+		if oldStatus != StatusError {
+			s.SetStatus(StatusError)
+			log.Info("status changed (agent exited)", "old", oldStatus, "new", StatusError)
 		}
 		return
 	}
