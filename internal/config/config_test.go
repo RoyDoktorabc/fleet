@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/brizzai/fleet/internal/claudeaccount"
 )
@@ -573,5 +574,26 @@ func TestGetSidebarWidthClamps(t *testing.T) {
 		if got := (&Config{SidebarWidth: c.set}).GetSidebarWidth(); got != c.want {
 			t.Errorf("GetSidebarWidth(%d) = %d, want %d", c.set, got, c.want)
 		}
+	}
+}
+
+func TestGetSuspendInactiveAfter(t *testing.T) {
+	h := func(n int) *int { return &n }
+	for _, tc := range []struct {
+		name string
+		v    *int
+		want time.Duration
+	}{
+		{"unset defaults to 48h", nil, 48 * time.Hour},
+		{"0 turns it off", h(0), 0},
+		{"negative turns it off", h(-5), 0},
+		{"custom hours", h(12), 12 * time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Config{SuspendInactiveAfterHours: tc.v}
+			if got := c.GetSuspendInactiveAfter(); got != tc.want {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

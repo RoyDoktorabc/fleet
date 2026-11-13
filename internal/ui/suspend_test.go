@@ -6,6 +6,7 @@ import (
 
 	"github.com/brizzai/fleet/internal/config"
 	"github.com/brizzai/fleet/internal/perfwatch"
+	"github.com/brizzai/fleet/internal/session"
 )
 
 // suspendIdleThreshold encodes the aggressiveness-mode table. Lock it down so a
@@ -41,5 +42,49 @@ func TestSuspendIdleThreshold(t *testing.T) {
 				t.Fatalf("minIdle = %v, want %v", gotMin, tt.wantMin)
 			}
 		})
+	}
+}
+
+// sweepDue: the inactivity limit suspends any at-rest row with no pressure; the
+// pressure threshold keeps its old idle-only scope; 0 turns the limit off.
+func TestSweepDue(t *testing.T) {
+	const day = 24 * time.Hour
+	tests := []struct {
+		name          string
+		st            session.Status
+		idle          time.Duration
+		pressureMin   time.Duration
+		pressureAct   bool
+		inactiveAfter time.Duration
+		want          bool
+	}{
+		{"idle past limit, no pressure", session.StatusIdle, 49 * time.Hour, 0, false, 2 * day, true},
+		{"finished past limit, no pressure", session.StatusFinished, 49 * time.Hour, 0, false, 2 * day, true},
+		{"error past limit, no pressure", session.StatusError, 49 * time.Hour, 0, false, 2 * day, true},
+		{"error under limit, no pressure", session.StatusError, 47 * time.Hour, 0, false, 2 * day, false},
+		{"limit off, no pressure", session.StatusIdle, 100 * day, 0, false, 0, false},
+		{"pressure suspends idle sooner", session.StatusIdle, 2 * time.Hour, time.Hour, true, 2 * day, true},
+		{"pressure leaves finished alone", session.StatusFinished, 2 * time.Hour, time.Hour, true, 2 * day, false},
+		{"pressure leaves error alone", session.StatusError, 2 * time.Hour, time.Hour, true, 0, false},
+		{"pressure, idle too fresh", session.StatusIdle, 30 * time.Minute, time.Hour, true, 2 * day, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sweepDue(tt.st, tt.idle, tt.pressureMin, tt.pressureAct, tt.inactiveAfter); got != tt.want {
+				t.Fatalf("sweepDue = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAtRest(t *testing.T) {
+	for st, want := range map[session.Status]bool{
+		session.StatusIdle: true, session.StatusFinished: true, session.StatusError: true,
+		session.StatusRunning: false, session.StatusWaiting: false, session.StatusStarting: false,
+		session.StatusSuspended: false,
+	} {
+		if got := atRest(st); got != want {
+			t.Errorf("atRest(%s) = %v, want %v", st, got, want)
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/brizzai/fleet/internal/claudeaccount"
 	"github.com/brizzai/fleet/internal/debuglog"
@@ -89,6 +90,10 @@ type Config struct {
 	// pressure: "off", "light" (default), "balanced", or "aggressive". Read via
 	// GetSessionSuspendMode. See internal/ui suspend sweep.
 	SessionSuspendMode string `json:"session_suspend_mode,omitempty"`
+	// SuspendInactiveAfterHours suspends a session at rest (idle, finished or
+	// error) this long, with or without memory pressure. Unset = 48, 0 = off.
+	// Read via GetSuspendInactiveAfter.
+	SuspendInactiveAfterHours *int `json:"suspend_inactive_after_hours,omitempty"`
 
 	// TicketStartState controls the one mutation fleet ever makes against a
 	// ticket tracker: moving an issue to its first started state when a
@@ -769,6 +774,18 @@ func (c *Config) GetSessionSuspendMode() string {
 		return c.SessionSuspendMode
 	}
 	return SuspendLight
+}
+
+// GetSuspendInactiveAfter is how long a session may sit at rest before the
+// sweep suspends it regardless of memory pressure: 48h by default, 0 when off.
+func (c *Config) GetSuspendInactiveAfter() time.Duration {
+	if c.SuspendInactiveAfterHours == nil {
+		return 48 * time.Hour
+	}
+	if *c.SuspendInactiveAfterHours <= 0 {
+		return 0
+	}
+	return time.Duration(*c.SuspendInactiveAfterHours) * time.Hour
 }
 
 // TelemetryConfigured reports whether the user already has an explicit

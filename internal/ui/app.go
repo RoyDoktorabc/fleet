@@ -5354,11 +5354,13 @@ const (
 
 // maybeSuspendIdleSessions hibernates the most-idle sessions under memory pressure,
 // per the configured aggressiveness mode, so a full fleet can't OOM-kill the shared
-// tmux server. Runs on the worker goroutine (it shells out to sysctl). Only
-// StatusIdle sessions are ever suspended.
+// tmux server. Independently, any session at rest (idle, finished, error) longer
+// than the inactivity limit is suspended with no pressure needed. Runs on the
+// worker goroutine (it shells out to sysctl).
 func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 	mode := h.cfg.GetSessionSuspendMode()
-	if mode == config.SuspendOff {
+	inactiveAfter := h.cfg.GetSuspendInactiveAfter()
+	if mode == config.SuspendOff && inactiveAfter == 0 {
 		return
 	}
 	if !h.lastSuspendSweepAt.IsZero() && time.Since(h.lastSuspendSweepAt) < suspendSweepInterval {
@@ -5376,12 +5378,14 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 	// Gather idle candidates first (cheap, no I/O) so we can skip the sysctl probe
 	// entirely when there's nothing we could shed.
 	type cand struct {
-		s    *session.Session
-		idle time.Duration
+		s      *session.Session
+		status session.Status
+		idle   time.Duration
 	}
 	var cands []cand
 	for _, s := range sessions {
-		if s.GetStatus() != session.StatusIdle || s.ID == attached {
+		st := s.GetStatus()
+		if !atRest(st) || s.ID == attached {
 			continue
 		}
 		// No captured resume id → Restart() would launch a fresh claude with no
@@ -5390,7 +5394,7 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 		if s.GetClaudeSessionID() == "" {
 			continue
 		}
-		cands = append(cands, cand{s, s.IdleFor()})
+		cands = append(cands, cand{s, st, s.IdleFor()})
 	}
 	if len(cands) == 0 {
 		return
@@ -5405,7 +5409,7 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 		level = perfwatch.PressureCritical
 	}
 	minIdle, act := suspendIdleThreshold(mode, level)
-	if !act {
+	if !act && inactiveAfter == 0 {
 		// Debug-only (FLEET_DEBUG): answers "why isn't auto-suspend firing?" —
 		// idle sessions exist but the current pressure/mode doesn't warrant action.
 		// Info would spam every ~20s; this stays quiet unless you're debugging.
@@ -5418,8 +5422,11 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 
 	n := 0
 	for _, c := range cands {
-		if n >= suspendSweepBatch || c.idle < minIdle {
-			break // sorted desc: once one is too fresh, so is everything after it
+		if n >= suspendSweepBatch {
+			break
+		}
+		if !sweepDue(c.status, c.idle, minIdle, act, inactiveAfter) {
+			continue
 		}
 		// Re-validate right before the irreversible kill: the user may have
 		// attached to or reactivated this session (Update thread) since we gathered
@@ -5427,7 +5434,7 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 		h.workerMu.Lock()
 		attachedNow := h.attachedSessionID
 		h.workerMu.Unlock()
-		if c.s.GetStatus() != session.StatusIdle || c.s.ID == attachedNow {
+		if c.s.GetStatus() != c.status || c.s.ID == attachedNow {
 			continue
 		}
 		if err := c.s.Suspend(); err != nil { // Suspend() logs the per-session event
@@ -5437,7 +5444,7 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 		if err := h.storage.UpdateStatus(c.s.ID, string(session.StatusSuspended)); err != nil {
 			debuglog.Logger.Error("storage: UpdateStatus after suspend", "id", c.s.ID, "err", err)
 		}
-		h.recordStatus(c.s.ID, session.StatusIdle, session.StatusSuspended)
+		h.recordStatus(c.s.ID, c.status, session.StatusSuspended)
 		h.logAction("suspend session", c.s.Title, true)
 		n++
 	}
@@ -5445,7 +5452,8 @@ func (h *Home) maybeSuspendIdleSessions(sessions []*session.Session) {
 		// One Info summary per acting sweep — the "why" (mode + live pressure) trail,
 		// on top of the per-session `session suspend` lines from Suspend().
 		debuglog.Logger.Info("memory sweep: suspended idle sessions",
-			"count", n, "mode", mode, "pressure", level, "swapFreeMB", swapFreeMB, "minIdle", minIdle.String())
+			"count", n, "mode", mode, "pressure", level, "swapFreeMB", swapFreeMB, "minIdle", minIdle.String(),
+			"inactiveAfter", inactiveAfter.String())
 		// Runs on the status worker, so this send must not be able to park:
 		// program.Send is a rendezvous on Tea's unbuffered channel and tea.Exec
 		// suspends the loop that drains it, which would freeze every session's
@@ -5672,6 +5680,21 @@ func missingDirs(paths []string) map[string]bool {
 		}
 	}
 	return out
+}
+
+// atRest is a status the sweep may suspend: nothing is running or asking.
+func atRest(st session.Status) bool {
+	return st == session.StatusIdle || st == session.StatusFinished || st == session.StatusError
+}
+
+// sweepDue reports whether a candidate is old enough to suspend. The pressure
+// threshold applies to idle sessions only, as before; the inactivity limit
+// (0 = off) applies to every at-rest status.
+func sweepDue(st session.Status, idle, pressureMin time.Duration, pressureAct bool, inactiveAfter time.Duration) bool {
+	if inactiveAfter > 0 && idle >= inactiveAfter {
+		return true
+	}
+	return pressureAct && st == session.StatusIdle && idle >= pressureMin
 }
 
 // suspendIdleThreshold returns the minimum idle duration a StatusIdle session must
