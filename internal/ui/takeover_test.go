@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/brizzai/fleet/internal/discovery"
+	"github.com/brizzai/fleet/internal/session"
 )
 
 func TestTakeoverPicker(t *testing.T) {
@@ -69,6 +70,32 @@ func TestRightArrowOpensASessionRow(t *testing.T) {
 	h.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	if !h.focusMode {
 		t.Error("→ on a session row did not open it the way Enter does")
+	}
+}
+
+func TestSplitEnterClearsTheUnreadDot(t *testing.T) {
+	h, s := scrollTestHome(t)
+	h.cfg.EnterMode = "split"
+	s.SetStatus(session.StatusFinished)
+	if err := h.storage.SaveSession(s.ToRow()); err != nil {
+		t.Fatalf("SaveSession: %v", err)
+	}
+
+	h.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !h.focusMode {
+		t.Fatal("precondition: Enter in split mode should focus the session")
+	}
+	if got := s.GetStatus(); got != session.StatusIdle {
+		t.Errorf("status after Enter in split mode = %s, want idle (dot cleared, as attach does)", got)
+	}
+	rows, err := h.storage.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions: %v", err)
+	}
+	for _, r := range rows {
+		if r.ID == s.ID && !r.Acknowledged {
+			t.Error("acknowledgement not persisted; the dot would return on the next load")
+		}
 	}
 }
 

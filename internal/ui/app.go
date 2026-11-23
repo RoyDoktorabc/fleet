@@ -6392,6 +6392,11 @@ func (h *Home) enterFocusMode() tea.Cmd {
 		h.setError("focus_not_running", fmt.Errorf("cannot focus: session not running"))
 		return nil
 	}
+	// Entering the split reads the session like an attach does, so its unread dot clears.
+	s.Acknowledge()
+	if err := h.storage.SetAcknowledged(s.ID, true); err != nil {
+		debuglog.Logger.Error("storage: SetAcknowledged", "id", s.ID, "err", err)
+	}
 	h.focusMode = true
 	h.sidebarDirty = true // separator color changes
 	h.logAction("focus preview", s.Title, true)
