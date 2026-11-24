@@ -73,6 +73,24 @@ func TestRightArrowOpensASessionRow(t *testing.T) {
 	}
 }
 
+func TestSplitTabOpensASessionRowLikeEnter(t *testing.T) {
+	h, s := scrollTestHome(t)
+	h.cfg.EnterMode = "split"
+
+	h.flatItems = []SidebarItem{{IsCheckoutHeader: true, RepoPath: "/tmp/scroll-test"}, {Session: s, RepoPath: "/tmp/scroll-test"}}
+	h.cursor = 0
+	h.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if h.focusMode {
+		t.Fatal("Tab on a header opened a session")
+	}
+
+	h.cursor = 1
+	h.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if !h.focusMode {
+		t.Error("Tab on a session row in split mode did not focus it the way Enter does")
+	}
+}
+
 func TestSplitEnterClearsTheUnreadDot(t *testing.T) {
 	h, s := scrollTestHome(t)
 	h.cfg.EnterMode = "split"
