@@ -925,6 +925,53 @@ func (s *Session) CapturePaneFresh() (string, error) {
 	return s.CapturePane()
 }
 
+// PaneCursor is tmux's text cursor for a pane: a cell of the visible screen,
+// counted from its top-left corner. Visible is false when the program in the
+// pane hid it.
+type PaneCursor struct {
+	X, Y    int
+	Visible bool
+}
+
+// CapturePaneWithCursor captures the pane like CapturePaneFresh and also asks
+// tmux where its cursor is, in the same tmux call so the two cannot disagree.
+// Programs such as Claude Code leave the real cursor on their input box and
+// draw no caret of their own, so the capture alone cannot show where typing goes.
+func (s *Session) CapturePaneWithCursor() (string, PaneCursor, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), captureTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "tmux", "capture-pane", "-t", s.Name, "-p", "-e", ";",
+		"display-message", "-t", s.Name, "-p", "#{cursor_x} #{cursor_y} #{cursor_flag}")
+	if out, err := cmd.Output(); err == nil {
+		if content, cur, ok := splitCaptureCursor(string(out)); ok {
+			s.cacheMu.Lock()
+			s.cacheContent = content
+			s.cacheTime = time.Now()
+			s.cacheMu.Unlock()
+			return content, cur, nil
+		}
+	}
+	content, err := s.CapturePaneFresh()
+	return content, PaneCursor{}, err
+}
+
+// splitCaptureCursor separates the capture-pane text from the cursor line that
+// display-message appended after it.
+func splitCaptureCursor(out string) (string, PaneCursor, bool) {
+	out = strings.TrimSuffix(out, "\n")
+	i := strings.LastIndexByte(out, '\n')
+	fields := strings.Fields(out[i+1:])
+	if len(fields) != 3 {
+		return "", PaneCursor{}, false
+	}
+	x, errX := strconv.Atoi(fields[0])
+	y, errY := strconv.Atoi(fields[1])
+	if errX != nil || errY != nil {
+		return "", PaneCursor{}, false
+	}
+	return out[:i+1], PaneCursor{X: x, Y: y, Visible: fields[2] == "1"}, true
+}
+
 // Kill terminates the tmux session.
 func (s *Session) Kill() error {
 	debuglog.Logger.Info("tmux killing session", "session", s.Name)
