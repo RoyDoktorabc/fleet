@@ -1,6 +1,7 @@
 package ui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"strings"
 	"testing"
 
@@ -103,5 +104,31 @@ func TestCursorMoveRepaintsEvenWhenTextIsUnchanged(t *testing.T) {
 	}
 	if h.isIdlePreviewPoll(previewMsg{sessionID: s.ID, content: "same", cursor: tmux.PaneCursor{X: 0, Y: 0, Visible: true}}) {
 		t.Fatal("a moved cursor must repaint")
+	}
+}
+
+func TestSplitViewShowsCaretOnTheInputRow(t *testing.T) {
+	h, s := scrollTestHome(t)
+	h.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	h.booted = true
+	h.focusMode = true
+	h.previewCache[s.ID] = "welcome\n\n❯ \n"
+	h.previewCursor[s.ID] = tmux.PaneCursor{X: 2, Y: 2, Visible: true}
+
+	caret := FocusCaret().Render(" ")
+	var inputRows []string
+	for _, row := range strings.Split(h.View().Content, "\n") {
+		if strings.Contains(row, caret) {
+			inputRows = append(inputRows, ansi.Strip(row))
+		}
+	}
+	if len(inputRows) != 1 || !strings.Contains(inputRows[0], "❯") {
+		t.Fatalf("want one caret on the ❯ row of the split view, got %d rows: %q", len(inputRows), inputRows)
+	}
+
+	h.previewCursor[s.ID] = tmux.PaneCursor{X: 2, Y: 2, Visible: false}
+	h.viewDirty = true // View reuses its last frame until something marks it stale
+	if strings.Contains(h.View().Content, caret) {
+		t.Fatal("caret still drawn after the agent hid its cursor")
 	}
 }
