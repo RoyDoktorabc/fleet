@@ -27,7 +27,7 @@ var allKeyBindings = []KeyBinding{
 	// Session actions.
 	{Key: ".", BarKey: ".", BarDesc: "Menu", Desc: "Context menu for the selected row", Section: "session"},
 	{Key: "Enter", BarKey: "⏎", BarDesc: "Open", Desc: "Attach / toggle group", Section: "session"},
-	{Key: "Tab", BarKey: "⇥", BarDesc: "Focus", Desc: "Focus preview / attach (swap)", Section: "session"},
+	{Key: "Tab", BarKey: "⇥", BarDesc: "Focus", Desc: "Focus preview", Section: "session"},
 	{Key: "Space", BarKey: "␣", BarDesc: "Jump", Desc: "Jump to next waiting/finished", Section: "session"},
 	{Key: "← / h", Desc: "Collapse group", Section: "session"},
 	{Key: "→ / l", Desc: "Expand group / open session", Section: "session"},
@@ -124,8 +124,8 @@ func HelpBarBindings() (context, global []struct{ Key, Desc string }) {
 // type currently under the cursor. Keeps the footer scannable (5-6 keys
 // per context) instead of dumping the whole keymap on every paint.
 // `enterMode` is the active Config.EnterMode ("attach" or "split"). In
-// split mode handleKey swaps Enter↔Tab, so the session footer needs to
-// follow suit or it points users at the wrong action.
+// split mode Enter and Tab both focus the preview, so the session footer
+// shows them as one key.
 func HelpBarBindingsFor(ctx BarContext, enterMode string) (context, global []struct{ Key, Desc string }) {
 	// Each list stays at 6 keys — the footer doesn't truncate, so a longer one
 	// would bleed past a narrow terminal. `.` earns its slot by being the gateway
@@ -136,8 +136,8 @@ func HelpBarBindingsFor(ctx BarContext, enterMode string) (context, global []str
 	case BarContextSession:
 		if enterMode == "split" {
 			context = []struct{ Key, Desc string }{
-				{"⇥", "Attach"}, {"⏎", "Focus"}, {"␣", "Jump"},
-				{"Y", "Approve"}, {"d", "Del"}, {".", "Menu"},
+				{"⏎/⇥", "Focus"}, {"␣", "Jump"}, {"Y", "Approve"},
+				{"d", "Del"}, {"p", "PR"}, {".", "Menu"},
 			}
 		} else {
 			context = []struct{ Key, Desc string }{

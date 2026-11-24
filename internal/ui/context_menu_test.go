@@ -272,13 +272,14 @@ func TestContextMenuResumeShortcutIsEnterInBothModes(t *testing.T) {
 		})
 	}
 
-	// Sanity: the swap still applies to the rows that genuinely follow it.
+	// In split mode no key attaches full screen (Tab focuses like Enter), so
+	// the Attach row must not advertise one.
 	live := session.NewSession("s", "/tmp/cm-repo")
 	h := menuHome(sessionRow(live), live)
 	h.cfg = &config.Config{EnterMode: "split"}
 	_, items := h.buildContextMenuItems()
-	if it, _ := findItem(items, "attach"); it.Shortcut != "⇥" {
-		t.Errorf("split-mode attach shortcut = %q, want ⇥", it.Shortcut)
+	if it, _ := findItem(items, "attach"); it.Shortcut != "" {
+		t.Errorf("split-mode attach shortcut = %q, want none", it.Shortcut)
 	}
 }
 

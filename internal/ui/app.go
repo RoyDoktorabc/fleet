@@ -3393,10 +3393,7 @@ func (h *Home) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return h, nil
 		}
 		if h.cfg.GetEnterMode() == "split" {
-			if s := h.selectedSession(); s != nil {
-				h.logAction("attach session", s.Title, true)
-			}
-			return h, h.attachSelected()
+			return h, h.activateCursorRow()
 		}
 		return h, h.enterFocusMode()
 	case "space":
@@ -9167,11 +9164,11 @@ func (h *Home) sessionContextMenu() (string, []ContextMenuItem) {
 	status := s.GetStatus()
 	resumable := s.GetClaudeSessionID() != ""
 
-	// In split mode handleKey swaps Enter↔Tab, so the menu has to follow or it
-	// would print the wrong key next to the action.
+	// In split mode Enter and Tab both focus the preview and no key attaches
+	// full screen, so Attach shows no shortcut there.
 	enterKey, tabKey := "⏎", "⇥"
 	if h.cfg.GetEnterMode() == "split" {
-		enterKey, tabKey = "⇥", "⏎"
+		enterKey, tabKey = "", "⏎"
 	}
 
 	// A suspended session has no tmux to attach to — it has to be restarted with
