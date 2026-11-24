@@ -10,6 +10,7 @@ import (
 	"github.com/brizzai/fleet/internal/git"
 	"github.com/brizzai/fleet/internal/github"
 	"github.com/brizzai/fleet/internal/session"
+	"github.com/brizzai/fleet/internal/tmux"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -18,7 +19,7 @@ import (
 // (name, status, PR, path, last-used) now rides the panel border via
 // BuildPreviewTitle / BuildPreviewFooter, freeing 5+ rows of vertical space
 // previously eaten by a metadata header block.
-func RenderPreview(s *session.Session, content string, repoInfo *git.RepoInfo, width, height int, focused bool) string {
+func RenderPreview(s *session.Session, content string, repoInfo *git.RepoInfo, width, height int, focused bool, caret tmux.PaneCursor) string {
 	if s == nil {
 		return DimStyle.Render("  No session selected")
 	}
@@ -67,6 +68,9 @@ func RenderPreview(s *session.Session, content string, repoInfo *git.RepoInfo, w
 	}
 	for i := start; i < len(lines); i++ {
 		line := lines[i]
+		if caret.Visible && i == caret.Y {
+			line = paintCaret(line, caret.X)
+		}
 		if ansi.StringWidth(line) > width-2 {
 			line = ansi.Truncate(line, width-2, "")
 		}

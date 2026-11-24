@@ -144,6 +144,7 @@ type (
 	previewMsg struct {
 		sessionID string
 		content   string
+		cursor    tmux.PaneCursor
 	}
 	loadSessionsMsg struct {
 		sessions     []*session.Session
@@ -365,6 +366,7 @@ type Home struct {
 	repoExpanded     map[string]bool // checkout-path / "origin:<key>" -> expanded state (default expanded when missing; persisted in SQLite)
 	previewCache     map[string]string
 	previewCacheTime map[string]time.Time
+	previewCursor    map[string]tmux.PaneCursor
 	statusRRIndex    int       // round-robin index for status updates
 	lastHeavyCycleAt time.Time // wall-clock gate: heavy worker work runs at most every tickInterval
 	// lastSuspendSweepAt throttles the memory-pressure idle-suspend sweep so it
@@ -679,6 +681,7 @@ func NewHome(storage *session.StateDB, cfg *config.Config, version string, ident
 		bugReport:              NewBugReportDialog(),
 		previewCache:           make(map[string]string),
 		previewCacheTime:       make(map[string]time.Time),
+		previewCursor:          make(map[string]tmux.PaneCursor),
 		repoLastHotAt:          make(map[string]time.Time),
 		filterInput:            fi,
 		cfg:                    cfg,
@@ -1752,6 +1755,7 @@ func (h *Home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		h.previewCache[msg.sessionID] = msg.content
 		h.previewCacheTime[msg.sessionID] = time.Now()
+		h.previewCursor[msg.sessionID] = msg.cursor
 		return h, nil
 
 	case workspaceListMsg:
@@ -2842,7 +2846,7 @@ func (h *Home) renderBody() string {
 
 		s, content := h.selectedPreview()
 		previewRepoInfo := h.repoInfoFromSnap(gitInfoSnap)
-		previewInner := RenderPreview(s, content, previewRepoInfo, innerW, previewHeight-2, h.focusMode)
+		previewInner := RenderPreview(s, content, previewRepoInfo, innerW, previewHeight-2, h.focusMode, h.previewCaret(s))
 		previewInner = ensureExactHeight(previewInner, previewHeight-2)
 		previewInner = ensureExactWidth(previewInner, innerW)
 		// Below the sidebar panel and the one-row gap.
@@ -2907,7 +2911,7 @@ func (h *Home) renderBody() string {
 
 		s, content := h.selectedPreview()
 		previewRepoInfo := h.repoInfoFromSnap(gitInfoSnap)
-		previewInner := RenderPreview(s, content, previewRepoInfo, previewInnerW, previewInnerH, h.focusMode)
+		previewInner := RenderPreview(s, content, previewRepoInfo, previewInnerW, previewInnerH, h.focusMode, h.previewCaret(s))
 		previewInner = ensureExactHeight(previewInner, previewInnerH)
 		previewInner = ensureExactWidth(previewInner, previewInnerW)
 		previewInner = h.notePreview(previewInner, s, sidebarWidth+gap+1, sidebarContentTop, previewInnerW, previewInnerH)
@@ -6418,7 +6422,7 @@ func (h *Home) isIdlePreviewPoll(msg tea.Msg) bool {
 		return true
 	case previewMsg:
 		old, ok := h.previewCache[m.sessionID]
-		return ok && old == m.content
+		return ok && old == m.content && h.previewCursor[m.sessionID] == m.cursor
 	}
 	return false
 }
@@ -6471,8 +6475,8 @@ func (h *Home) fetchPreviewFresh(s *session.Session) tea.Cmd {
 	resize := h.previewResize(s)
 	return func() tea.Msg {
 		resize()
-		content, _ := ts.CapturePaneFresh()
-		return previewMsg{sessionID: id, content: content}
+		content, cursor, _ := ts.CapturePaneWithCursor()
+		return previewMsg{sessionID: id, content: content, cursor: cursor}
 	}
 }
 
@@ -8623,6 +8627,16 @@ func (h *Home) selectedSession() *session.Session {
 		return nil
 	}
 	return h.flatItems[h.cursor].Session
+}
+
+// previewCaret is the cursor to draw in the split view: only while the pane
+// takes keystrokes, and not while the text is scrolled or selected, because then
+// the shown rows are no longer the live screen the cursor refers to.
+func (h *Home) previewCaret(s *session.Session) tmux.PaneCursor {
+	if s == nil || !h.focusMode || h.previewSel.active() || h.previewScroll.offset > 0 {
+		return tmux.PaneCursor{}
+	}
+	return h.previewCursor[s.ID]
 }
 
 func (h *Home) selectedPreview() (*session.Session, string) {

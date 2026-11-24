@@ -33,7 +33,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/brizzai/fleet/internal/debuglog"
 	"github.com/brizzai/fleet/internal/shell"
@@ -782,31 +781,7 @@ func (h *Home) renderDrawer(width, maxOuterH int) string {
 	// Block cursor at the emulator's real (x, y). Only overlaid once fully open —
 	// the slide crops rows, so the row index would otherwise be off.
 	if h.drawerMode == drawerTyping && h.drawerProgress >= 0.999 && cursorY >= 0 && cursorY < len(body) {
-		cur := FocusCaret()
-		line := body[cursorY]
-		lw := lipgloss.Width(line)
-		if cursorX < 0 || cursorX >= lw {
-			pad := cursorX - lw
-			if pad < 0 {
-				pad = 0
-			}
-			body[cursorY] = line + strings.Repeat(" ", pad) + cur.Render(" ")
-		} else {
-			// The grapheme under the cursor may be double-width (CJK/emoji/wide box
-			// drawing). A 1-cell cut of a wide glyph returns "" (it can't fit), which
-			// would blank the cursor and leave the glyph in the right-hand remainder
-			// — garbling the row. Detect the wide case and slice by the full width.
-			cellW := 1
-			if ansi.Strip(ansi.Cut(line, cursorX, cursorX+1)) == "" &&
-				ansi.StringWidth(ansi.Cut(line, cursorX, cursorX+2)) == 2 {
-				cellW = 2
-			}
-			cell := ansi.Strip(ansi.Cut(line, cursorX, cursorX+cellW))
-			if cell == "" {
-				cell = " "
-			}
-			body[cursorY] = ansi.Truncate(line, cursorX, "") + cur.Render(cell) + ansi.TruncateLeft(line, cursorX+cellW, "")
-		}
+		body[cursorY] = paintCaret(body[cursorY], cursorX)
 	}
 
 	bodyStr := strings.Join(body, "\n")
